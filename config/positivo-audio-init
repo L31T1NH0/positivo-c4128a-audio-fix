@@ -1,0 +1,23 @@
+#!/bin/sh
+# Restore the ES8326 speaker route; the generic ACP profile leaves it muted.
+set -eu
+[ "$(cat /sys/class/dmi/id/product_name)" = "C4128A-15" ] || exit 0
+# On boot, the user session can start before SOF registers the sound card.
+attempt=0
+until amixer -c sofessx8336 sget Speaker >/dev/null 2>&1; do
+    attempt=$((attempt + 1))
+    if [ "$attempt" -ge 120 ]; then
+        echo 'Positivo audio card was not ready within 30 seconds' >&2
+        exit 1
+    fi
+    sleep 0.25
+done
+amixer -q -c sofessx8336 cset "name='HPVol SPKVol Switch'" 3
+amixer -q -c sofessx8336 sset DAC 171
+amixer -q -c sofessx8336 sset SPKL 171
+amixer -q -c sofessx8336 sset SPKR 171
+amixer -q -c sofessx8336 sset Headphone off
+amixer -q -c sofessx8336 sset 'Internal Mic' off
+amixer -q -c sofessx8336 sset Speaker on
+# Fail visibly in the service journal if the speaker route did not activate.
+amixer -c sofessx8336 sget Speaker | grep -Fq 'Playback [on]'
