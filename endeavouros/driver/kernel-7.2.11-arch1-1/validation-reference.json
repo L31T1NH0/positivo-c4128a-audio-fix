@@ -1,0 +1,24 @@
+{
+  "repository": "https://github.com/archlinux/linux",
+  "tag": "v7.2.11-arch1",
+  "commit": "64a90897d3c539033f24105968e3513957e70819",
+  "files": {
+    "intel/boards/sof_es8336.c": "04f604e0f709481aab8e306ef63aad41ac92f7a5c54b9b75ac4f0394b6995e64",
+    "intel/boards/hda_dsp_common.h": "f72a3850e0248ea68ba7e6af79268c702b1cee771d11ac04f8f0d9c11dc98f93",
+    "codecs/hdac_hda.h": "6698e1d51ee53c3dc83b41742ba78f7fb3b4b33f0a0769fd2eb2c34b554d425e"
+  },
+  "validation": {
+    "baseline_text_identical_to_distribution": true,
+    "baseline_text_sha256": "610a71413b0546393cc01ea2fbce7b5745f3e185b3fd100c1f9a9fc21c252c08",
+    "distribution_srcversion": "5253FF914FDF992A5E8E156",
+    "baseline_external_srcversion": "C1E97B3F1FA0267F4AFE972",
+    "patched_srcversion": "814C65736E12680A3D41AF3",
+    "patched_version": "0.2.0-positivo-7.2.11",
+    "vermagic": "7.2.11-arch1-1 SMP preempt mod_unload",
+    "depends": "snd-soc-core,snd,snd-soc-intel-hda-dsp-common",
+    "module_sha256": "b8db7aadb3f2f8574c559c4cd0d7607c1c677d69f0a775d4454c3acb8b5f37ae",
+    "kernel_sha256": "7ca8265d776950dd3cdfb8eab7ee33978d139125e09bcf2a3a4ff482b7d5728c",
+    "compile": "W=1; no warnings; same compiler as distribution",
+    "hardware_test": "pending reboot into separate initramfs"
+  }
+}

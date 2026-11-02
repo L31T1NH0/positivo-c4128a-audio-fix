@@ -2,7 +2,10 @@
 
 [← Voltar à escolha de ambiente](../README.md)
 
-**Alto-falantes e microfone interno, usando o driver da distribuição.**
+**Configuração de sessão para alto-falantes e microfone, usando o driver da distribuição.**
+
+O [patch experimental para o kernel 7.2.11](driver/kernel-7.2.11-arch1-1/README.md)
+é um caminho separado: compilou, mas ainda aguarda teste de hardware após boot.
 
 Configuração de sessão para **Positivo C4128A-15**, codec **ESSX8326**, placa
 `sofessx8336`. Complementa a publicação original com uma alternativa para
@@ -21,9 +24,31 @@ Em **01/11/2026**, no EndeavourOS:
 - Os ponteiros de reprodução e captura avançaram simultaneamente a aproximadamente
   48.000 quadros/s, inclusive após encerrar os clientes de teste.
 
-Isso confirma resposta à voz e transporte simultâneo de áudio nesta sessão.
-Não houve validação prolongada de qualidade/inteligibilidade, chamadas, novo reboot
-ou suspensão com a configuração final. Não é garantia para outros kernels/modelos.
+Isso confirmou resposta à voz e transporte simultâneo de áudio naquela sessão.
+Em **02/11/2026**, após reiniciar, a saída voltou a ficar silenciosa apesar dos
+fluxos em avanço: o amplificador estava desligado fisicamente, enquanto DAPM e
+`Speaker` indicavam ligado. O rearme pelo mixer recuperou o som, confirmado pelo
+usuário. A captura de voz não foi revalidada nesse reboot. Não houve validação
+prolongada de chamadas, qualidade/inteligibilidade ou suspensão.
+
+## Recorrência do amplificador e recuperação
+
+A configuração de sessão é um contorno e não resolveu definitivamente a retomada
+do amplificador. O `positivo-audio-init` agora força `Speaker off/on` no login para
+gerar uma transição DAPM, mesmo quando o controle já aparece ligado.
+
+Se a reprodução voltar a ficar silenciosa com fluxos em avanço, execute como
+usuário normal, na raiz do repositório:
+
+```sh
+sh endeavouros/scripts/retomar-audio.sh
+```
+
+O comando apenas rearma `Speaker` pelo mixer; não recarrega módulos nem reinicia
+os serviços. Isso não corrige a causa no driver nem impede toda recorrência.
+O [patch 7.2.11](driver/kernel-7.2.11-arch1-1/README.md) tenta corrigir o ponto de
+retomada no driver e usa uma entrada de boot experimental separada. Ele ainda
+**não foi validado com o módulo corrigido carregado**.
 
 ## O problema e o contorno
 
@@ -238,7 +263,9 @@ Essa reversão não modifica o driver: nenhum módulo foi instalado por estes pa
   Bluetooth, suspensão e retomada não foram validados nesta configuração.
 - A detecção física incorreta de jack não foi corrigida no driver; o perfil evita
   depender dela para selecionar entrada/saída. Novas detecções podem exigir revisão.
-- A configuração final ainda precisa de teste após outro reboot e de uso prolongado.
+- Houve recorrência do amplificador após reboot. O rearme no login e o comando
+  manual são contornos; a persistência e a captura de voz ainda exigem novos testes.
+  O patch experimental precisa do primeiro teste após boot com o candidato carregado.
 - Os nomes e limites dos controles de mixer são específicos do codec observado.
   O script confere os controles antes de aplicar os ajustes; erros ficam no journal
   do WirePlumber, sem impedir a inicialização do gerenciador de áudio.

@@ -6,14 +6,15 @@ organizadas por ambiente. Escolha uma delas antes de seguir os comandos.
 
 ## 1. EndeavourOS · WirePlumber 0.5
 
-**Alto-falantes e microfone interno, sem instalar driver DKMS.**
+**Configuração de sessão para alto-falantes e microfone; patch do driver separado e experimental.**
 
 - Ambiente testado: kernel `7.2.11-arch1-1`, PipeWire 1.6.10 e WirePlumber 0.5.18.
 - Usa o driver original da distribuição, perfil de reprodução/captura no PCM 0 e
   configuração de sessão que mantém entrada e saída abertas após o uso.
-- O usuário confirmou resposta à voz em 01/11/2026. Reprodução e captura avançaram
-  simultaneamente nos testes; a configuração final ainda não passou por outro
-  reboot, suspensão ou uso prolongado.
+- Resposta à voz e fluxos simultâneos confirmados em 01/11/2026. Em 02/11,
+  o reinício expôs recorrência do amplificador desligado; o som voltou pelo mixer.
+- Um [patch para o kernel 7.2.11](endeavouros/driver/kernel-7.2.11-arch1-1/README.md)
+  foi compilado e preparado em boot separado, **ainda sem validação após reiniciar**.
 
 **→ [Guia EndeavourOS: instalação, backup, validação e reversão](endeavouros/README.md)**
 
@@ -58,7 +59,10 @@ Cada guia informa os limites e os passos de reversão correspondentes ao seu amb
 ├── README.md                         # Escolha do ambiente e visão geral
 ├── endeavouros/
 │   ├── README.md                     # Guia de áudio e microfone / WirePlumber 0.5
-│   └── config/                       # Perfil duplex, regras .conf e mixer
+│   ├── config/                       # Perfil duplex, regras .conf e mixer
+│   ├── scripts/                      # Rearme manual do amplificador
+│   └── driver/
+│       └── kernel-7.2.11-arch1-1/      # Patch experimental e teste de boot isolado
 └── linux-mint/
     ├── README.md                     # Guia de reprodução / WirePlumber 0.4
     ├── config/                       # Perfil sem captura, regras Lua e mixer
@@ -75,7 +79,8 @@ pastas acima. Use os comandos atualizados dos guias, pois os caminhos mudaram.
 ## Limites e origem dos fontes
 
 São resultados em um equipamento específico, não uma garantia para outros modelos.
-O contorno do EndeavourOS não comprova uma correção definitiva do driver. Fone P2,
+O contorno do EndeavourOS não comprova uma correção definitiva do driver; houve
+recorrência após reboot. O patch 7.2.11 está compilado, mas ainda aguarda teste físico. Fone P2,
 Bluetooth, suspensão e retomada não foram validados nas configurações finais.
 Manter dispositivos abertos pode afetar consumo de energia.
 

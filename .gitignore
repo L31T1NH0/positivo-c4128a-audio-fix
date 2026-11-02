@@ -6,3 +6,7 @@
 Module.symvers
 modules.order
 .tmp_versions/
+*.ko.zst
+*.ko.xz
+.build/
+__pycache__/
