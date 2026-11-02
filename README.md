@@ -1,113 +1,88 @@
-# Áudio no Positivo C4128A-15 (Linux)
+# Áudio e microfone no Positivo C4128A-15
 
-Patch do driver SOF ES8336 e configurações de áudio para o notebook **Positivo C4128A-15**, codec **ESSX8326**, placa ALSA `sofessx8336`.
+Correções e contornos para o notebook **Positivo C4128A-15**, codec **ESSX8326**,
+placa ALSA `sofessx8336`. O repositório contém **duas configurações independentes**,
+organizadas por ambiente. Escolha uma delas antes de seguir os comandos.
 
-## Escolha a configuração do seu ambiente
+## 1. EndeavourOS · WirePlumber 0.5
 
-| Ambiente | Solução documentada | Estado |
-| --- | --- | --- |
-| EndeavourOS, kernel `7.2.11-arch1-1`, WirePlumber 0.5.18 | [Áudio e microfone, sem driver DKMS](docs/wireplumber-0.5.md) | Resposta à voz confirmada em 01/11/2026; configuração final ainda sem novo reboot/suspensão |
-| Linux Mint 22.3, kernel `7.0.0-28-generic`, WirePlumber 0.4.17 | Patch e configuração somente de alto-falantes, abaixo | Reprodução confirmada; microfone desativado |
+**Alto-falantes e microfone interno, sem instalar driver DKMS.**
 
-As configurações são alternativas para ambientes diferentes. Não instale as regras Lua 0.4 no WirePlumber 0.5, nem use o DKMS antigo no kernel 7.2.
+- Ambiente testado: kernel `7.2.11-arch1-1`, PipeWire 1.6.10 e WirePlumber 0.5.18.
+- Usa o driver original da distribuição, perfil de reprodução/captura no PCM 0 e
+  configuração de sessão que mantém entrada e saída abertas após o uso.
+- O usuário confirmou resposta à voz em 01/11/2026. Reprodução e captura avançaram
+  simultaneamente nos testes; a configuração final ainda não passou por outro
+  reboot, suspensão ou uso prolongado.
 
-O ajuste novo mantém entrada e saída abertas para contornar o travamento observado ao reabrir o PCM compartilhado. Ele não comprova uma correção definitiva do driver. Consulte [os passos, a reversão e os limites](docs/wireplumber-0.5.md).
+**→ [Guia EndeavourOS: instalação, backup, validação e reversão](endeavouros/README.md)**
 
-## Histórico: Linux Mint e WirePlumber 0.4
+Arquivos deste caminho: [`endeavouros/config/`](endeavouros/config/).
 
-**Estado documentado em 18/10/2026 para o Mint:** a reprodução voltou a funcionar. O microfone interno foi desativado para contornar uma segunda falha de reprodução/captura simultâneas. Esta publicação não representa uma solução completa de áudio e microfone.
+## 2. Linux Mint 22.3 · WirePlumber 0.4
 
-## Ambiente em que foi testado
+**Somente alto-falantes; o microfone interno fica desativado.**
 
-- Linux Mint 22.3; kernel `7.0.0-28-generic` (Ubuntu 7.0.12).
-- PipeWire 1.0.5; WirePlumber 0.4.17.
-- Módulo DKMS `positivo-es8336/0.1`.
+- Ambiente testado: kernel `7.0.0-28-generic` (Ubuntu 7.0.12), PipeWire 1.0.5 e
+  WirePlumber 0.4.17.
+- Inclui o patch de retomada do amplificador, os fontes DKMS e regras Lua 0.4.
+- Reprodução confirmada no ambiente original; captura simultânea apresentou
+  travamento e foi desabilitada nesse perfil.
 
-Não aplique automaticamente em outros modelos ou kernels. As regras Lua são para WirePlumber 0.4; precisam de adaptação para 0.5.
+**→ [Guia Linux Mint: driver, configuração e reversão](linux-mint/README.md)**
 
-## O que o patch corrige
+Arquivos deste caminho: [`linux-mint/config/`](linux-mint/config/),
+[`linux-mint/driver/`](linux-mint/driver/) e
+[`linux-mint/scripts/`](linux-mint/scripts/).
 
-No driver observado, STOP/PAUSE_PUSH/SUSPEND desligavam o amplificador por GPIO sem atualizar o estado lógico DAPM. START/PAUSE_RELEASE/RESUME não restauravam esse GPIO, podendo deixar o alto-falante silencioso na reprodução seguinte.
+## Qual caminho usar?
 
-O patch agenda o trabalho existente `pcm_pop_work` no início ou retomada da reprodução, usando o atraso de 70 ms já presente no driver. Veja [o patch](sof-es8336-retomada.patch) e os [fontes DKMS](dkms-source/).
+| Seu ambiente | Pasta e guia | Reprodução | Microfone |
+| --- | --- | --- | --- |
+| EndeavourOS com WirePlumber 0.5, no kernel testado | [`endeavouros/`](endeavouros/README.md) | Confirmada | Resposta à voz confirmada |
+| Mint 22.3 com WirePlumber 0.4, no kernel testado | [`linux-mint/`](linux-mint/README.md) | Confirmada | Desativado pelo perfil |
+| Outro modelo, distribuição, kernel ou versão do WirePlumber | Revise a compatibilidade antes de instalar | Não validada | Não validado |
 
-O módulo corrigido foi carregado, e houve confirmação de som físico em vídeos, VLC e retomadas, inclusive após dois reinícios. Mais tarde houve nova falha com ponteiros de reprodução e captura congelados, mesmo com o patch carregado. Desativar a captura recuperou a reprodução. A causa dessa segunda falha não foi isolada.
+Consulte sua versão com `wireplumber --version` e o kernel com `uname -r`.
+As configurações são específicas dos ambientes documentados: **não misture os
+dois caminhos**, não instale as regras Lua 0.4 no WirePlumber 0.5 e não use o DKMS
+do Mint no kernel 7.2.
 
-## Instalar o driver no ambiente testado
+Os comandos dos dois guias devem ser executados **na raiz do repositório**.
+Cada guia informa os limites e os passos de reversão correspondentes ao seu ambiente.
 
-Revise o código antes de executar. Os comandos abaixo alteram módulos do kernel; tenha acesso a um terminal para reverter. Com Secure Boot ativo, o módulo precisa de assinatura e chave aceita pelo sistema.
+## Organização dos arquivos
 
-Na raiz deste repositório, com `dkms`, ferramentas de compilação e headers do kernel instalados:
-
-```sh
-test "$(uname -r)" = 7.0.0-28-generic
-test "$(cat /sys/class/dmi/id/product_name)" = C4128A-15
-sudo apt install dkms build-essential "linux-headers-$(uname -r)"
-# Se este destino já existir, revise a instalação existente antes de continuar.
-sudo test ! -e /usr/src/positivo-es8336-0.1
-sudo cp -a dkms-source /usr/src/positivo-es8336-0.1
-sudo dkms add -m positivo-es8336 -v 0.1
-sudo dkms build -m positivo-es8336 -v 0.1 -k "$(uname -r)"
-sudo dkms install -m positivo-es8336 -v 0.1 -k "$(uname -r)"
-sudo update-initramfs -u -k "$(uname -r)"
+```text
+.
+├── README.md                         # Escolha do ambiente e visão geral
+├── endeavouros/
+│   ├── README.md                     # Guia de áudio e microfone / WirePlumber 0.5
+│   └── config/                       # Perfil duplex, regras .conf e mixer
+└── linux-mint/
+    ├── README.md                     # Guia de reprodução / WirePlumber 0.4
+    ├── config/                       # Perfil sem captura, regras Lua e mixer
+    ├── driver/
+    │   ├── dkms-source/              # Fontes do módulo para a série 7.0
+    │   └── sof-es8336-retomada.patch  # Patch de retomada do amplificador
+    └── scripts/
+        └── reverter-driver.sh        # Remoção da sobreposição DKMS no Mint
 ```
 
-Execute cada comando separadamente e pare se qualquer um falhar. Reinicie o notebook depois da instalação. O módulo da distribuição permanece no disco; o DKMS instala uma sobreposição em `updates/dkms`.
+Os arquivos antigos da raiz e de `config/wireplumber-0.5/` foram movidos para as
+pastas acima. Use os comandos atualizados dos guias, pois os caminhos mudaram.
 
-```sh
-dkms status -m positivo-es8336
-modinfo -n snd_soc_sof_es8336
-modinfo -F srcversion snd_soc_sof_es8336
-cat /sys/module/snd_soc_sof_es8336/srcversion
-```
+## Limites e origem dos fontes
 
-Na compilação originalmente testada, o `srcversion` instalado e carregado era `C39F57C1811A19F2CB2F848`. O DKMS aceita apenas a série 7.0, mas a validação foi feita somente no kernel indicado acima.
+São resultados em um equipamento específico, não uma garantia para outros modelos.
+O contorno do EndeavourOS não comprova uma correção definitiva do driver. Fone P2,
+Bluetooth, suspensão e retomada não foram validados nas configurações finais.
+Manter dispositivos abertos pode afetar consumo de energia.
 
-## Configuração complementar: somente alto-falantes
+Os [fontes do módulo e cabeçalhos](linux-mint/driver/dkms-source/) foram preservados
+da investigação baseada no kernel Linux/Ubuntu 7.0.12. Os avisos de copyright e
+identificadores SPDX foram mantidos; consulte cada arquivo para sua licença.
+O driver `sof_es8336.c` declara `GPL-2.0-only`.
 
-Os arquivos em `config/` contornam a falsa detecção de fone, limitam o perfil ao PCM 0, mantêm a saída aberta e inicializam as rotas do mixer com espera de até 30 segundos pela placa. O microfone interno fica desligado. Os níveis do mixer são os usados no equipamento testado; comece com o volume de reprodução baixo.
-
-Faça backup de arquivos existentes nos destinos antes de substituí-los. Execute como seu usuário, na raiz do repositório:
-
-```sh
-mkdir -p "$HOME/.config/positivo-audio" "$HOME/.config/wireplumber/main.lua.d" "$HOME/.config/systemd/user/wireplumber.service.d" "$HOME/.local/bin"
-cp config/profile.conf "$HOME/.config/positivo-audio/profile.conf"
-python3 - <<'CONFIG'
-from pathlib import Path
-home = Path.home()
-for source, target in [
-    ('config/51-disable-broken-sof-hdmi.lua', '.config/wireplumber/main.lua.d/51-disable-broken-sof-hdmi.lua'),
-    ('config/positivo-audio.conf', '.config/systemd/user/wireplumber.service.d/positivo-audio.conf'),
-]:
-    (home / target).write_text(Path(source).read_text().replace('@HOME@', str(home)))
-CONFIG
-install -m 755 config/positivo-audio-init "$HOME/.local/bin/positivo-audio-init"
-systemctl --user daemon-reload
-systemctl --user restart pipewire pipewire-pulse wireplumber
-```
-
-Essa substituição pressupõe um caminho de usuário convencional, sem aspas ou caracteres especiais. O reinício interrompe os fluxos de áudio; reabra ou recarregue a mídia depois. Se necessário, selecione “Alto-falantes internos” nas configurações de som.
-
-## Reverter
-
-Para remover o driver DKMS e atualizar o initramfs do kernel em uso:
-
-```sh
-sudo sh ./reverter-driver.sh
-```
-
-Reinicie para carregar o módulo original. Para desfazer a configuração de sessão, restaure seus backups dos quatro arquivos instalados acima, ou remova apenas os arquivos que esta instalação criou se não havia versões anteriores. Depois execute `systemctl --user daemon-reload` e reinicie os três serviços de áudio.
-
-## Limites conhecidos
-
-- No ambiente Mint/WirePlumber 0.4 desta seção, o bloqueio de reprodução/captura simultâneas não foi corrigido; o perfil em `config/profile.conf` oferece apenas reprodução. O contorno novo para WirePlumber 0.5 está documentado separadamente.
-- A configuração final sem captura teve confirmação de voz e mídia com som, mas não passou por outro reboot nem por teste prolongado naquela etapa.
-- Suspensão do notebook, fone P2 e Bluetooth não foram validados. Não há troca automática para fone P2 neste perfil.
-- Manter a saída aberta pode aumentar o consumo de energia; isso não foi medido.
-- Novas versões de kernel e WirePlumber precisam de revisão e novos testes.
-
-## Origem e licença dos fontes
-
-Os fontes do módulo e cabeçalhos foram preservados da investigação baseada no código do kernel Linux/Ubuntu 7.0.12. Os avisos de copyright e identificadores SPDX de cada arquivo foram mantidos. Consulte esses avisos para as licenças aplicáveis; o driver `sof_es8336.c` declara `GPL-2.0-only`. O patch modifica esse driver.
-
-Logs pessoais, conversas, gravações, dumps de sessão e módulos binários não fazem parte deste repositório.
+Logs pessoais, conversas, gravações, credenciais, dumps de sessão e módulos binários
+não fazem parte deste repositório.

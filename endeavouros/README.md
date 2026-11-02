@@ -1,9 +1,13 @@
-# Alto-falantes e microfone: WirePlumber 0.5
+# EndeavourOS · WirePlumber 0.5
+
+[← Voltar à escolha de ambiente](../README.md)
+
+**Alto-falantes e microfone interno, usando o driver da distribuição.**
 
 Configuração de sessão para **Positivo C4128A-15**, codec **ESSX8326**, placa
 `sofessx8336`. Complementa a publicação original com uma alternativa para
 EndeavourOS e WirePlumber 0.5. Os arquivos estão em
-[`config/wireplumber-0.5/`](../config/wireplumber-0.5/).
+[`config/`](config/).
 
 ## Ambiente e resultado observado
 
@@ -95,7 +99,7 @@ if Path('/sys/class/dmi/id/product_name').read_text().strip() != 'C4128A-15':
 version = subprocess.check_output(['wireplumber', '--version'], text=True)
 if not re.search(r'libwireplumber 0[.]5[.]', version):
     raise SystemExit('Esta configuração exige WirePlumber 0.5.')
-source = Path('config/wireplumber-0.5')
+source = Path('endeavouros/config')
 files = {
     '.config/positivo-audio/profile.conf': 'profile.conf',
     '.config/wireplumber/wireplumber.conf.d/51-positivo-audio.conf': '51-positivo-audio.conf',
