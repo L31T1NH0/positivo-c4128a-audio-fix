@@ -41,9 +41,13 @@ def main():
         shutil.copytree(BASE / 'source', build / name, dirs_exist_ok=True)
     run(['patch', '--batch', '--fuzz=0', '-p3', '-d', str(build / 'patched'),
          '-i', str(BASE / 'sof-es8336-retomada-7.2.11.patch')])
+    run(['patch', '--batch', '--fuzz=0', '-p3', '-d', str(build / 'patched'),
+         '-i', str(BASE / 'es8326-internal-dmic.patch')])
     for name in ('original', 'patched'):
-        run(['make', '-C', str(headers), 'M=' + str(build / name / 'intel/boards'), 'W=1', 'modules'])
-    stock_path = Path(subprocess.check_output(['modinfo', '-n', 'snd_soc_sof_es8336'], text=True).strip())
+        for folder in ('intel/boards', 'codecs'):
+            run(['make', '-C', str(headers), 'M=' + str(build / name / folder), 'W=1', 'modules'])
+    # Explicit distribution paths also work after a previous override installation.
+    stock_path = Path('/usr/lib/modules') / KVER / 'kernel/sound/soc/intel/boards/snd-soc-sof_es8336.ko.zst'
     stock = build / 'distribution.ko'
     if stock_path.suffix != '.zst':
         raise SystemExit('Compressão do módulo diferente da distribuição revisada.')
@@ -73,7 +77,35 @@ def main():
         'compiler': compiler,
         'module_sha256': digest(patched),
         'kernel_sha256': digest(Path('/usr/lib/modules') / KVER / 'vmlinuz'),
-        'hardware_test': 'pending reboot into separate initramfs',
+        'hardware_test': 'this build must be validated; see hardware-confirmation.json for the tested reference',
+    }
+    codec_stock = build / 'codec-distribution.ko'
+    codec_path = Path('/usr/lib/modules') / KVER / 'kernel/sound/soc/codecs/snd-soc-es8326.ko.zst'
+    with codec_stock.open('wb') as output:
+        run(['zstd', '-d', '-c', str(codec_path)], stdout=output)
+    codec_original = build / 'original/codecs/snd-soc-es8326.ko'
+    codec_patched = build / 'patched/codecs/snd-soc-es8326.ko'
+    for name, module in (('stock', codec_stock), ('original', codec_original)):
+        run(['objcopy', '--dump-section', '.text=' + str(build / ('codec-' + name + '.text')), str(module)])
+    if (build / 'codec-stock.text').read_bytes() != (build / 'codec-original.text').read_bytes():
+        raise SystemExit('Código original do codec difere do módulo da distribuição.')
+    for field in ('alias', 'name', 'license', 'description', 'vermagic'):
+        if not info(codec_stock, field) == info(codec_original, field) == info(codec_patched, field):
+            raise SystemExit('Metadado do codec mudou: ' + field)
+    before = set(info(codec_stock, 'depends').split(','))
+    after = set(info(codec_patched, 'depends').split(','))
+    if not before <= after or after - before - {'snd'}:
+        raise SystemExit('Dependência inesperada no codec.')
+    if info(codec_patched, 'version') != '0.1.0-positivo-dmic':
+        raise SystemExit('Versão inesperada no codec.')
+    provenance['codec_validation'] = {
+        'baseline_text_identical_to_distribution': True,
+        'baseline_text_sha256': digest(build / 'codec-stock.text'),
+        'module_sha256': digest(codec_patched),
+        'patched_srcversion': info(codec_patched, 'srcversion'),
+        'patched_version': info(codec_patched, 'version'),
+        'vermagic': info(codec_patched, 'vermagic'),
+        'depends': info(codec_patched, 'depends'),
     }
     (build / 'validation.json').write_text(json.dumps(provenance, indent=2) + '\n')
     print('Compilação e comparação concluídas. Nenhum módulo foi instalado ou recarregado.')

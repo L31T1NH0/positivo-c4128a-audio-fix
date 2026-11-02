@@ -1,0 +1,26 @@
+{
+  "date": "2026-11-02",
+  "model": "C4128A-15",
+  "kernel": "7.2.11-arch1-1",
+  "amplifier": {
+    "version": "0.2.0-positivo-7.2.11",
+    "srcversion": "814C65736E12680A3D41AF3"
+  },
+  "codec": {
+    "version": "0.1.0-positivo-dmic",
+    "srcversion": "F0CB492CF78BF9937A62431"
+  },
+  "alsa_control": {
+    "name": "Internal DMIC Force Switch",
+    "state": "on"
+  },
+  "confirmed": "User confirmed playback and internal microphone working with both patched modules loaded in isolated boot.",
+  "persistent_installation": "Same tested modules installed for normal boot; image contents verified by hash; experimental entry removed; original modules and rollback preserved.",
+  "not_yet_observed": [
+    "first regular boot after persistent installation",
+    "suspend/resume",
+    "extensive real PCM stop/start cycles",
+    "prolonged use"
+  ],
+  "scope": "one tested device and exact kernel; not an upstream release or cross-device guarantee"
+}

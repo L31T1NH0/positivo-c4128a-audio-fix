@@ -24,6 +24,10 @@ amixer -q -c sofessx8336 sset 'Headset Mic' off
 # Capture at unity gain; previous settings added up to 40 dB.
 amixer -q -c sofessx8336 sset ADC 191,191
 amixer -q -c sofessx8336 sset 'ADC PGA' 0,0
+# O controle existe somente no codec experimental. O boot original continua compatível.
+if amixer -c sofessx8336 cget "name='Internal DMIC Force Switch'" >/dev/null 2>&1; then
+    amixer -q -c sofessx8336 cset "name='Internal DMIC Force Switch'" on
+fi
 amixer -q -c sofessx8336 sset 'Internal Mic' on
 # Forçar a transição DAPM: Speaker já marcado como on pode ter GPIO desligado.
 amixer -q -c sofessx8336 sset Speaker off

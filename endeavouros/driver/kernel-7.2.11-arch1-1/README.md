@@ -1,188 +1,245 @@
-# Patch experimental · kernel 7.2.11-arch1-1
+# Drivers de áudio e microfone · kernel 7.2.11-arch1-1
 
 [← Guia EndeavourOS](../../README.md) · [Escolha de ambiente](../../../README.md)
 
-**Estado em 02/11/2026: compilado sem avisos e imagem de teste preparada no
-equipamento investigado. O módulo corrigido ainda não foi validado após boot.**
+**Estado em 02/11/2026:** o usuário confirmou alto-falantes e microfone funcionando
+com os dois módulos corrigidos carregados em boot isolado. Os mesmos módulos foram
+instalados para o boot normal, com conferência da imagem, e a entrada de teste foi
+removida. **O primeiro reinício normal após a instalação persistente ainda não foi
+observado.** Suspensão, uso prolongado e ciclos extensivos de retomada não foram validados.
 
-Este candidato trata a retomada do amplificador dos alto-falantes. Não é uma
-correção upstream nem uma garantia para outros kernels ou equipamentos. A
-configuração de sessão e os problemas de microfone/PCM são assuntos distintos.
+Esta é uma correção local, específica do Positivo C4128A-15 no kernel indicado.
+Os patches não foram aceitos upstream e não são garantia para outros equipamentos.
+O [registro de confirmação](hardware-confirmation.json) separa os resultados de
+hardware das verificações de compilação.
 
-## Falha observada
+## 1. Retomada do amplificador
 
-Após reiniciar o notebook, os serviços de áudio estavam ativos, a saída não estava
-silenciada e os ponteiros de reprodução/captura avançavam. Mesmo assim não havia
-som: `Speaker=on` e DAPM `Speaker Power=On`, mas o GPIO `speakers-enable` estava
-`out lo ACTIVE LOW`. Reativar `Speaker` pelo mixer mudou o GPIO para `out hi` e
-o usuário confirmou que o som voltou.
+Mesmo com `Speaker=on`, DAPM ligado, saída sem mute e ponteiros PCM em avanço,
+o amplificador estava fisicamente desligado. Rearmar Speaker pelo mixer recuperou
+o som, confirmado pelo usuário. O driver desliga o GPIO em STOP, mas não o restaurava
+explicitamente nos eventos de início/retomada.
 
-O driver desliga o amplificador em STOP/PAUSE_PUSH/SUSPEND sem atualizar o estado
-lógico DAPM. START/PAUSE_RELEASE/RESUME não restauravam explicitamente esse GPIO.
-Essa divergência é compatível com a falha observada. O rearme pelo mixer é um
-contorno; este patch tenta corrigir a retomada dentro do driver.
+O [patch do amplificador](sof-es8336-retomada-7.2.11.patch) adiciona quatro linhas
+funcionais: em START/PAUSE_RELEASE/RESUME, somente para reprodução, reagenda
+`pcm_pop_work` com os mesmos 70 ms já utilizados pelo driver. O trabalho aplica ao
+GPIO o estado lógico DAPM. A versão local é `0.2.0-positivo-7.2.11`.
 
-## Alteração e procedência
+A lógica de STOP/cancelamento foi preservada. Não se afirma que todas as possíveis
+corridas do driver ou falhas de PCM/DSP estejam corrigidas.
 
-O [patch](sof-es8336-retomada-7.2.11.patch) adiciona quatro linhas funcionais a
-`sof_8336_trigger`: nos eventos de início/retomada, somente para reprodução,
-reagenda `pcm_pop_work` com o atraso de 70 ms que já existia no driver.
-O trabalho existente aplica ao GPIO o estado lógico DAPM atual.
+## 2. Seleção do microfone digital interno
 
-Também é adicionado o identificador `MODULE_VERSION("0.2.0-positivo-7.2.11")` para
-identificar o módulo carregado. Não foram alterados codec, captura, topologia,
-detecção de jack ou parâmetros de quirk. A lógica existente de STOP/cancelamento
-permanece; não se afirma que todas as possíveis corridas do driver foram corrigidas.
+O sistema detectava um headset P2 inexistente. A rotina do codec mudava as fontes
+ADC de `44/66` (entrada digital usada pelo microfone interno) para `00/00`
+(analógica). Os ponteiros de captura avançavam, mas não havia resposta à voz.
+Restaurar temporariamente a entrada digital recuperou a voz, confirmado pelo usuário.
 
-Os [fontes originais](source/) vêm do [kernel Arch Linux](https://github.com/archlinux/linux/tree/64a90897d3c539033f24105968e3513957e70819),
+O [patch do codec](es8326-internal-dmic.patch) acrescenta o controle ALSA
+**Internal DMIC Force Switch**:
+
+| Estado | Comportamento |
+| --- | --- |
+| `off`, padrão | Mantém a escolha automática original de entrada |
+| `on` | Fixa `44/66` e impede que o detector de headset substitua essa seleção por `00/00` |
+
+O setter e a rotina de jack compartilham o mesmo mutex. Desligar o controle restaura
+as fontes correspondentes ao estado de jack atual. Falhas de regmap são propagadas
+pelo setter e a flag anterior é restaurada. A versão local é `0.1.0-positivo-dmic`.
+
+O [script de sessão](../../config/positivo-audio-init) habilita o controle somente
+quando ele existe; sem o novo codec, o script continua compatível. Não há escrita
+I2C direta nem `sudo` na inicialização da sessão.
+
+O controle **não corrige a detecção física do P2**. Com a entrada digital fixada,
+não há troca automática para o microfone analógico de headset. O patch não modifica
+GPIO do amplificador, relógios ou topologia. A seleção permanece automática por
+padrão para equipamentos que não habilitem o controle explicitamente.
+
+## Fonte e verificações
+
+Fontes do [kernel Arch Linux](https://github.com/archlinux/linux/tree/64a90897d3c539033f24105968e3513957e70819),
 tag `v7.2.11-arch1`, commit `64a90897d3c539033f24105968e3513957e70819`.
-[source.json](source.json) registra os hashes SHA-256 dos três arquivos de origem.
-Os avisos de copyright e SPDX foram preservados.
+[source.json](source.json) registra hashes SHA-256. Copyright e SPDX foram preservados.
 
-## Verificações já realizadas
+Verificações realizadas:
 
-- Compilação original e corrigida com GCC 16.2.1 20260810, headers da versão
-  `7.2.11-arch1-1` e `W=1`, sem avisos.
-- A seção executável `.text` da compilação original foi idêntica, byte a byte,
-  à do módulo da distribuição instalado no equipamento.
-- Nome, aliases, licença, namespace, dependências e vermagic foram preservados.
-- O módulo dentro da imagem experimental foi conferido por hash com `lsinitrd`;
-  o pré-carregamento `rd.driver.pre` foi verificado.
-- A sintaxe do GRUB e a preservação da entrada normal foram verificadas.
+- Compilação dos módulos originais e corrigidos com headers `7.2.11-arch1-1`,
+  GCC 16.2.1 20260810 e `W=1`, sem avisos.
+- As seções executáveis `.text` das compilações originais foram idênticas, byte a
+  byte, às dos respectivos módulos da distribuição.
+- Nome, aliases, licença e vermagic preservados. No amplificador, dependências e
+  namespace também permaneceram iguais.
+- No codec, a dependência direta adicional `snd` fornece o descritor booleano ALSA;
+  esse módulo já era dependência indireta do núcleo de áudio.
+- Testes C das funções reais do controle, com ALSA/regmap/mutex simulados: seleção,
+  sobrescrita solicitada pelo detector, modo automático, valores inválidos,
+  controle repetido, ausência de jack e erro I2C.
+- Os módulos embutidos nas imagens de teste e persistente foram conferidos por hash.
+- Após o teste confirmado pelo usuário, originais em disco foram preservados e a
+  entrada experimental foi removida. O GRUB gerado passou por verificação de sintaxe.
 
-O [relatório de referência](validation-reference.json) registra essa compilação.
-Compilações externas podem ter srcversion ou hash de módulo diferentes por causa
-do ambiente de compilação. O instalador usa o manifesto gerado **na sua compilação**,
-não trata o relatório de referência como certificado de funcionamento.
+[validation-reference.json](validation-reference.json) e
+[codec-validation-reference.json](codec-validation-reference.json) são registros de
+compilação de referência. Hash e srcversion podem variar conforme o ambiente de
+compilação; os instaladores usam o manifesto da **compilação local**. Esses registros
+não certificam funcionamento em outra máquina.
 
-**Não concluído:** teste físico com o candidato carregado, repetidas paradas e
-retomadas reais do PCM, microfone simultâneo, suspensão e uso prolongado.
-
-## Requisitos e escopo
+## Requisitos
 
 - Positivo `C4128A-15`, kernel e headers exatamente `7.2.11-arch1-1`.
-- Ambiente EndeavourOS/Arch com GRUB e dracut no layout documentado abaixo.
-- Python 3, GCC, make, binutils, patch, zstd, kmod, dracut e ferramentas do GRUB.
-- Secure Boot desativado no equipamento testado. O módulo externo não é assinado;
-  sistemas que exigem assinatura precisam de uma revisão específica.
+- EndeavourOS/Arch com GRUB e dracut no layout reconhecido pelos scripts.
+- Python 3, GCC, make, binutils, patch, zstd, kmod, dracut e ferramentas GRUB.
+- Secure Boot desativado no equipamento testado; os módulos externos não são
+  assinados. Sistemas que exigem assinatura precisam de revisão específica.
 
-Não execute este instalador com outro gerenciador de boot. Ele recusa modelos,
-kernels, caminhos de GRUB ou destinos existentes que não correspondam ao teste.
-Não remova nem recarregue módulos de áudio e não use unbind/rebind do controlador.
+Não use os instaladores em outro bootloader, modelo ou kernel. Eles recusam destinos
+existentes para não sobrescrever uma instalação sem revisão. **Não descarregue os
+módulos nem use unbind/rebind do controlador**: a investigação anterior atingiu
+falha no kernel ao tentar esse caminho.
 
-## 1. Compilar sem instalar
+## Etapa A · Compilar e testar a lógica, sem instalar
 
-Na raiz do repositório, como usuário normal:
+Todos os comandos abaixo partem da raiz do repositório:
 
 ```sh
 python3 endeavouros/driver/kernel-7.2.11-arch1-1/build.py
+python3 endeavouros/driver/kernel-7.2.11-arch1-1/tests/test-control.py
 ```
 
-O script verifica os hashes dos fontes, aplica o patch com `--fuzz=0` e compila
-as versões original e corrigida. Compara `.text` com o módulo instalado e confere
-metadados de compatibilidade. Qualquer divergência impede a etapa seguinte.
+O build verifica os hashes dos fontes, aplica os dois patches com `--fuzz=0`,
+compila e compara as versões originais com os módulos da distribuição. Os caminhos
+dos originais são explícitos, permitindo a comparação mesmo quando já existe uma
+sobreposição instalada. Uma divergência interrompe o processo.
 
-Os resultados ficam em `.build/`, ignorada pelo Git:
+O resultado fica em `.build/`, ignorada pelo Git: fontes de compilação, módulos,
+seções de comparação e `validation.json`. Nenhum módulo é instalado ou carregado.
+Testes de lógica não substituem confirmação de voz e som no hardware.
 
-- `original/` e `patched/`: árvores de compilação;
-- `distribution.ko`: cópia descomprimida do módulo instalado para comparação;
-- `validation.json`: hashes e identificadores da compilação local.
+## Etapa B · Boot isolado de validação
 
-Nenhum módulo é instalado ou carregado nesta etapa. A compilação bem-sucedida não
-substitui o teste do hardware.
-
-## 2. Preparar uma entrada de boot separada
-
-Leia [install-test.py](install-test.py) antes de executar:
+Leia [install-test.py](install-test.py) e execute:
 
 ```sh
 sudo python3 endeavouros/driver/kernel-7.2.11-arch1-1/install-test.py
 ```
 
-O instalador não altera `/usr/lib/modules` nem as imagens normais. Ele cria:
+O script mantém intactos `/usr/lib/modules` e as imagens normais. Cria:
 
 | Destino | Finalidade |
 | --- | --- |
 | `/boot/positivo-audio-7.2.11-arch1-1/vmlinuz` | Cópia do kernel da distribuição |
-| `/boot/positivo-audio-7.2.11-arch1-1/initramfs.img` | Imagem com o módulo corrigido pré-carregado |
-| `/etc/grub.d/42_positivo_audio_test` | Entrada exclusiva do experimento |
-| `/var/lib/positivo-audio/driver-test-7.2.11-arch1-1/` | Backup do menu, hashes dos originais, logs e reversão |
+| `/boot/positivo-audio-7.2.11-arch1-1/initramfs.img` | Imagem com os dois módulos corrigidos |
+| `/etc/grub.d/42_positivo_audio_test` | Entrada do experimento |
+| `/var/lib/positivo-audio/driver-test-7.2.11-arch1-1/` | Backup, hashes, overlay usado na imagem, logs e reversão |
 
-Os arquivos experimentais ficam em uma **subpasta de `/boot`** para não serem
-confundidos pelo gerador do GRUB com o kernel padrão. Antes de publicar o novo
-menu local, o script confere sua sintaxe e compara a entrada normal à anterior.
+A subpasta em `/boot` evita que o gerador do GRUB confunda o kernel experimental
+com o padrão. O script confere a imagem, o pré-carregamento dos dois módulos, a
+sintaxe do menu e a preservação da entrada normal antes de publicar o menu local.
+Não seleciona a entrada de teste automaticamente.
 
-Ele **não seleciona o teste automaticamente** nem altera permanentemente o padrão
-do GRUB. Se a instalação falhar, não repita por cima dos destinos existentes:
-consulte os logs e a reversão. Mesmo uma tentativa parcial pode deixar arquivos
-experimentais, mas o menu normal só é substituído após as verificações.
-
-## 3. Testar uma única inicialização
+Para testar uma única inicialização:
 
 ```sh
 sudo grub-reboot positivo-audio-test
 ```
 
-Salve o trabalho e reinicie normalmente. A entrada será
-**EndeavourOS - teste audio Positivo (7.2.11)**. A seleção vale apenas uma vez;
-a inicialização seguinte volta ao padrão normal. Também é possível escolher
-manualmente essa entrada no menu do GRUB.
+Salve seu trabalho e reinicie normalmente. Escolha, se necessário,
+**EndeavourOS - teste audio Positivo (7.2.11)**. A seleção vale uma vez; o boot
+seguinte volta ao padrão se você ainda não fez a instalação persistente.
 
-Depois, confira o módulo **carregado**:
+Depois, confira os módulos **carregados** e o controle:
 
 ```sh
 uname -r
 cat /sys/module/snd_soc_sof_es8336/version
-cat /sys/module/snd_soc_sof_es8336/srcversion
+cat /sys/module/snd_soc_es8326/version
+amixer -c sofessx8336 cget "name='Internal DMIC Force Switch'"
 ```
 
-O kernel deve ser `7.2.11-arch1-1`, a versão deve ser
-`0.2.0-positivo-7.2.11` e o srcversion deve corresponder a
-`.build/validation.json`. `modinfo` sem caminho continua mostrando o módulo
-original em disco, por projeto; o sysfs identifica o módulo que está em uso.
+Esperado: kernel `7.2.11-arch1-1`, versões `0.2.0-positivo-7.2.11` e
+`0.1.0-positivo-dmic`, controle `on` após aplicar a configuração de sessão atual.
+Os srcversions em `/sys/module/.../srcversion` devem corresponder ao manifesto
+local. Nesta etapa, `modinfo` sem caminho ainda pode apontar para os originais em
+disco; ele não identifica sozinho o módulo carregado.
 
-Valide som físico, pausas/retomadas, fechamento e reabertura de aplicativos, voz no
-microfone e captura simultânea. Manter o PCM aberto no WirePlumber pode impedir
-que uma simples pausa da mídia exercite STOP/START reais do driver. O teste da
-correção precisa confirmar as transições do PCM e o GPIO, não só o estado da TUI.
-O rearme de Speaker no login acontece uma vez e também não prova a correção.
+Confirme voz real, reprodução, fechamento/reabertura dos aplicativos e uso
+simultâneo. Uma onda de ruído ou apenas ponteiros em avanço não comprovam voz.
+Manter o PCM aberto no WirePlumber pode impedir que uma pausa da mídia exercite
+STOP/START reais; testes da retomada precisam observar essas transições e o GPIO.
 
-Os contornos de sessão foram mantidos para não mudar várias variáveis ao mesmo
-tempo. Não use esta entrada depois de remover os módulos desse kernel em uma
-atualização. O candidato não tem reconstrução automática via DKMS.
+## Etapa C · Tornar persistente e remover o teste
 
-## Reversão
+**Faça somente depois de confirmar os dois módulos carregados e o funcionamento
+no boot isolado.** Leia [install-persistent.py](install-persistent.py):
 
-Para voltar ao original, reinicie pela entrada normal **EndeavourOS Linux**.
-Se o teste não iniciar corretamente, reinicie e escolha essa entrada normal.
+```sh
+sudo python3 endeavouros/driver/kernel-7.2.11-arch1-1/install-persistent.py
+```
 
-Para cancelar uma seleção de teste pendente:
+O script usa os arquivos que foram incluídos no teste e compara versão/srcversion
+com os módulos em execução. Ele:
+
+1. Salva a imagem normal anterior e um manifesto de reversão.
+2. Instala cópias em `/usr/lib/modules/7.2.11-arch1-1/updates/positivo-audio/`,
+   preservando os originais em `kernel/sound/soc/`.
+3. Executa `depmod` e confere que os módulos corrigidos são selecionados.
+4. Adiciona o pré-carregamento em `/etc/dracut.conf.d/positivo-audio.conf`.
+5. Gera uma imagem normal temporária e confere os dois módulos por hash antes de
+   substituir `/boot/initramfs-linux.img`.
+6. Remove a entrada e as imagens experimentais, sem descarregar módulos em uso.
+
+Backup, manifesto, logs e reversão ficam em:
+`/var/lib/positivo-audio/permanente-7.2.11-arch1-1/`.
+
+Essa instalação foi realizada no equipamento investigado. A imagem normal foi
+verificada, mas o primeiro reinício por ela ainda não foi observado. A confirmação
+física anterior ocorreu no boot isolado com os mesmos módulos.
+
+## Reverter
+
+### Antes da instalação persistente
+
+Reinicie pela entrada normal **EndeavourOS Linux** para usar os originais. Para
+cancelar uma seleção de teste pendente:
 
 ```sh
 sudo grub-editenv /boot/grub/grubenv unset next_entry
 ```
 
-Para remover também o menu e as imagens experimentais:
+Para remover o experimento sem promover os módulos:
 
 ```sh
 sudo python3 /var/lib/positivo-audio/driver-test-7.2.11-arch1-1/remove-test.py
 ```
 
-Se a instalação falhou antes de copiar o script de reversão, use a cópia do
-repositório, na raiz dele:
+Se a instalação parcial ainda não copiou esse script, use
+`sudo python3 endeavouros/driver/kernel-7.2.11-arch1-1/remove-test.py` na raiz do
+repositório. Não repita instalações por cima de destinos existentes sem revisar logs.
+
+### Depois da instalação persistente
+
+A entrada normal já usa os corrigidos. Para restaurar os originais:
 
 ```sh
-sudo python3 endeavouros/driver/kernel-7.2.11-arch1-1/remove-test.py
+sudo python3 /var/lib/positivo-audio/permanente-7.2.11-arch1-1/reverter.py
 ```
 
-A reversão não descarrega módulos em uso. Se o candidato já estiver carregado,
-reinicie depois para carregar o original. O backup anterior do GRUB fica em
-`/var/lib/positivo-audio/driver-test-7.2.11-arch1-1/grub.cfg.before` para recuperação
-manual, se necessária.
+O script confere o kernel padrão, os hashes das sobreposições e o backup; remove
+somente as cópias e a configuração criadas por esse procedimento, executa `depmod`
+e restaura a imagem anterior. Reinicie depois para carregar os originais. Não há
+recarga de driver durante a reversão. Se o kernel padrão já mudou, a reversão para
+uma imagem antiga é recusada e exige revisão.
 
-## Arquivos publicados
+## Atualizações e limites
 
-São publicados fontes, patch, scripts e relatórios de compilação sem dados locais.
-Não são incluídos módulos `.ko`, kernels, imagens de boot, logs de sessão, UUIDs de
-disco, credenciais ou gravações. O patch continua experimental até a validação
-física com o módulo corrigido em execução.
+- **Fixado no kernel 7.2.11-arch1-1.** Não há DKMS nem reconstrução automática.
+  Um kernel diferente exige adaptação, compilação e nova validação. A configuração
+  de pré-carregamento não transforma os módulos originais de um kernel novo em
+  versões corrigidas.
+- Não se comprova correção definitiva de todos os problemas do driver/firmware.
+- O controle digital não corrige o detector físico do conector P2. Headset P2,
+  Bluetooth, suspensão, retomadas extensivas e uso prolongado não foram validados.
+- Os contornos de sessão, inclusive manter os PCM abertos, foram preservados.
+- Não há binários, kernels, imagens de boot, UUIDs de disco, credenciais, logs
+  pessoais ou gravações neste repositório. Fontes, patches e scripts são revisáveis.

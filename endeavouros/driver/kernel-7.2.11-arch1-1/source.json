@@ -5,6 +5,8 @@
   "files": {
     "intel/boards/sof_es8336.c": "04f604e0f709481aab8e306ef63aad41ac92f7a5c54b9b75ac4f0394b6995e64",
     "intel/boards/hda_dsp_common.h": "f72a3850e0248ea68ba7e6af79268c702b1cee771d11ac04f8f0d9c11dc98f93",
-    "codecs/hdac_hda.h": "6698e1d51ee53c3dc83b41742ba78f7fb3b4b33f0a0769fd2eb2c34b554d425e"
+    "codecs/hdac_hda.h": "6698e1d51ee53c3dc83b41742ba78f7fb3b4b33f0a0769fd2eb2c34b554d425e",
+    "codecs/es8326.c": "3b4207ea322516e0a658f0282170514f76d0bbaafb93017ea6e52f7e507c6c20",
+    "codecs/es8326.h": "0442ef8d7404359040d601f8e06a901980aa619ba94a3d783e0a95f195285bd1"
   }
 }

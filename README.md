@@ -6,15 +6,17 @@ organizadas por ambiente. Escolha uma delas antes de seguir os comandos.
 
 ## 1. EndeavourOS · WirePlumber 0.5
 
-**Configuração de sessão para alto-falantes e microfone; patch do driver separado e experimental.**
+**Configuração de sessão para alto-falantes e microfone; dois patches locais do driver, específicos do kernel 7.2.11.**
 
 - Ambiente testado: kernel `7.2.11-arch1-1`, PipeWire 1.6.10 e WirePlumber 0.5.18.
 - Usa o driver original da distribuição, perfil de reprodução/captura no PCM 0 e
   configuração de sessão que mantém entrada e saída abertas após o uso.
 - Resposta à voz e fluxos simultâneos confirmados em 01/11/2026. Em 02/11,
   o reinício expôs recorrência do amplificador desligado; o som voltou pelo mixer.
-- Um [patch para o kernel 7.2.11](endeavouros/driver/kernel-7.2.11-arch1-1/README.md)
-  foi compilado e preparado em boot separado, **ainda sem validação após reiniciar**.
+- Os [dois patches para o kernel 7.2.11](endeavouros/driver/kernel-7.2.11-arch1-1/README.md)
+  corrigem a retomada do amplificador e permitem fixar o microfone digital. O usuário
+  confirmou ambos no boot isolado; a instalação persistente foi preparada e o teste
+  removido do GRUB. **O primeiro reinício normal ainda não foi observado.**
 
 **→ [Guia EndeavourOS: instalação, backup, validação e reversão](endeavouros/README.md)**
 
@@ -62,7 +64,7 @@ Cada guia informa os limites e os passos de reversão correspondentes ao seu amb
 │   ├── config/                       # Perfil duplex, regras .conf e mixer
 │   ├── scripts/                      # Rearme manual do amplificador
 │   └── driver/
-│       └── kernel-7.2.11-arch1-1/      # Patch experimental e teste de boot isolado
+│       └── kernel-7.2.11-arch1-1/      # Dois patches, teste isolado, persistência e reversão
 └── linux-mint/
     ├── README.md                     # Guia de reprodução / WirePlumber 0.4
     ├── config/                       # Perfil sem captura, regras Lua e mixer
@@ -80,7 +82,8 @@ pastas acima. Use os comandos atualizados dos guias, pois os caminhos mudaram.
 
 São resultados em um equipamento específico, não uma garantia para outros modelos.
 O contorno do EndeavourOS não comprova uma correção definitiva do driver; houve
-recorrência após reboot. O patch 7.2.11 está compilado, mas ainda aguarda teste físico. Fone P2,
+recorrência após reboot. Os módulos 7.2.11 tiveram som e voz confirmados em boot isolado. A primeira
+inicialização normal após a instalação persistente ainda precisa ser observada. Fone P2,
 Bluetooth, suspensão e retomada não foram validados nas configurações finais.
 Manter dispositivos abertos pode afetar consumo de energia.
 

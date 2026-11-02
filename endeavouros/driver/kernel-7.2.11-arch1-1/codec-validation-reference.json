@@ -1,0 +1,19 @@
+{
+  "commit": "64a90897d3c539033f24105968e3513957e70819",
+  "files": {
+    "es8326.c": "3b4207ea322516e0a658f0282170514f76d0bbaafb93017ea6e52f7e507c6c20",
+    "es8326.h": "0442ef8d7404359040d601f8e06a901980aa619ba94a3d783e0a95f195285bd1"
+  },
+  "validation": {
+    "baseline_text_identical_to_distribution": true,
+    "baseline_text_sha256": "d17571cd7e1a7ac58c5f20e83a68896574f2da0a8f650aa23e09c97cc5fe9c8c",
+    "module_sha256": "9cb1a0dd3bfbdc3a3ebf4248b892a15df0fa48d9d6227a090ac8c8d5dc21ff15",
+    "patched_srcversion": "F0CB492CF78BF9937A62431",
+    "patched_version": "0.1.0-positivo-dmic",
+    "vermagic": "7.2.11-arch1-1 SMP preempt mod_unload",
+    "depends": "snd-soc-core,snd",
+    "added_dependency": "snd: standard ALSA boolean control info, already an indirect sound-core dependency",
+    "simulation_tests": "passed: control and jack source override, invalid values, I2C failure",
+    "hardware_test": "pending next test boot"
+  }
+}

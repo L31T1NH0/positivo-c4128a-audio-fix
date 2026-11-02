@@ -38,14 +38,20 @@ def main():
     for target in (STATE, SCRIPT, BOOT, KERNEL, IMAGE):
         if target.exists() or target.is_symlink():
             raise SystemExit('Destino já existe; revise antes de repetir: ' + str(target))
-    validation = json.loads((BASE / '.build/validation.json').read_text())['validation']
+    build_report = json.loads((BASE / '.build/validation.json').read_text())
+    validation = build_report['validation']
+    codec_validation = build_report['codec_validation']
     module = BASE / '.build/patched/intel/boards/snd-soc-sof_es8336.ko'
+    codec_module = BASE / '.build/patched/codecs/snd-soc-es8326.ko'
     kernel_source = Path('/usr/lib/modules') / KVER / 'vmlinuz'
     if sha(module) != validation['module_sha256'] or sha(kernel_source) != validation['kernel_sha256']:
         raise SystemExit('O módulo/kernel mudou desde a validação.')
-    stock_module = Path(subprocess.check_output(['modinfo', '-n', 'snd_soc_sof_es8336'], text=True).strip())
+    if sha(codec_module) != codec_validation['module_sha256']:
+        raise SystemExit('O codec mudou desde a validação.')
+    stock_module = Path('/usr/lib/modules') / KVER / 'kernel/sound/soc/intel/boards/snd-soc-sof_es8336.ko.zst'
+    stock_codec = Path('/usr/lib/modules') / KVER / 'kernel/sound/soc/codecs/snd-soc-es8326.ko.zst'
     original_paths = [Path('/boot/vmlinuz-linux'), Path('/boot/initramfs-linux.img'),
-                      Path('/boot/initramfs-linux-fallback.img'), stock_module]
+                      Path('/boot/initramfs-linux-fallback.img'), stock_module, stock_codec]
     original_hashes = {str(p): sha(p) for p in original_paths}
     content = CFG.read_text()
     match = re.search(r"^menuentry 'EndeavourOS Linux'.*?^}", content, re.M | re.S)
@@ -73,17 +79,26 @@ def main():
     bundled_module = overlay / MODULE_REL
     bundled_module.parent.mkdir(parents=True)
     run(['zstd', '-q', '-f', str(module), '-o', str(bundled_module)])
+    codec_rel = Path('usr/lib/modules') / KVER / 'kernel/sound/soc/codecs/snd-soc-es8326.ko.zst'
+    bundled_codec = overlay / codec_rel
+    bundled_codec.parent.mkdir(parents=True, exist_ok=True)
+    run(['zstd', '-q', '-f', str(codec_module), '-o', str(bundled_codec)])
     print('Gerando imagem de teste separada; os arquivos do boot normal serão preservados.', flush=True)
     with (STATE / 'dracut.log').open('w') as log:
         run(['dracut', '--kver', KVER, '--nostrip', '--nohardlink',
-             '--force-drivers', 'snd_soc_sof_es8336', '--include', str(overlay), '/',
+             '--force-drivers', 'snd_soc_es8326 snd_soc_sof_es8336', '--include', str(overlay), '/',
              str(IMAGE)], stdout=log, stderr=subprocess.STDOUT)
     extracted = subprocess.check_output(['lsinitrd', '-f', str(MODULE_REL), str(IMAGE)])
     if hashlib.sha256(extracted).hexdigest() != sha(bundled_module):
         raise RuntimeError('O módulo dentro da imagem não corresponde ao módulo compilado.')
+    codec_extracted = subprocess.check_output(['lsinitrd', '-f', str(codec_rel), str(IMAGE)])
+    if hashlib.sha256(codec_extracted).hexdigest() != sha(bundled_codec):
+        raise RuntimeError('O codec dentro da imagem difere do codec compilado.')
     pre = subprocess.check_output(['lsinitrd', '-f', 'etc/cmdline.d/20-force_drivers.conf', str(IMAGE)], text=True)
     if 'rd.driver.pre=snd_soc_sof_es8336' not in pre:
         raise RuntimeError('A imagem não garante o carregamento antecipado do módulo de teste.')
+    if 'rd.driver.pre=snd_soc_es8326' not in pre:
+        raise RuntimeError('A imagem não garante o carregamento antecipado do codec de teste.')
     print('Imagem conferida: módulo corrigido incluído e pré-carregamento configurado.', flush=True)
     shutil.copy2(kernel_source, KERNEL)
     script = "#!/bin/sh\n# Positivo audio: isolated test, original boot remains available.\ncat <<'POSITIVO_GRUB_ENTRY'\n" + block + "\nPOSITIVO_GRUB_ENTRY\n"

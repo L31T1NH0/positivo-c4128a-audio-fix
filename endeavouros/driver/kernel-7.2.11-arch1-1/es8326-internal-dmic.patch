@@ -1,0 +1,105 @@
+--- a/sound/soc/codecs/es8326.c
++++ b/sound/soc/codecs/es8326.c
+@@ -37,6 +37,7 @@
+ 	u8 hpl_vol;
+ 	u8 hpr_vol;
+ 	bool jd_inverted;
++	bool force_internal_dmic;
+ 	unsigned int sysclk;
+ 
+ 	bool calibrated;
+@@ -237,7 +238,67 @@
+ static const struct soc_enum hpvol_spkvol_switch =
+ 	SOC_ENUM_SINGLE(ES8326_HP_MISC, 6, 4, hp_spkvol_switch);
+ 
++/* Caller holds es8326->lock, including the jack worker and control put. */
++static int es8326_apply_adc_sources(struct es8326_priv *es8326,
++				    unsigned int source1, unsigned int source2)
++{
++	struct reg_sequence sources[] = {
++		{ ES8326_ADC1_SRC, source1 },
++		{ ES8326_ADC2_SRC, source2 },
++	};
++
++	if (es8326->force_internal_dmic) {
++		sources[0].def = 0x44;
++		sources[1].def = 0x66;
++	}
++
++	return regmap_multi_reg_write(es8326->regmap, sources, ARRAY_SIZE(sources));
++}
++
++static int es8326_internal_dmic_get(struct snd_kcontrol *kcontrol,
++				   struct snd_ctl_elem_value *ucontrol)
++{
++	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
++	struct es8326_priv *es8326 = snd_soc_component_get_drvdata(component);
++
++	mutex_lock(&es8326->lock);
++	ucontrol->value.integer.value[0] = es8326->force_internal_dmic;
++	mutex_unlock(&es8326->lock);
++	return 0;
++}
++
++static int es8326_internal_dmic_put(struct snd_kcontrol *kcontrol,
++				   struct snd_ctl_elem_value *ucontrol)
++{
++	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
++	struct es8326_priv *es8326 = snd_soc_component_get_drvdata(component);
++	bool enabled, previous;
++	unsigned int source1 = 0x44, source2 = 0x66;
++	int ret;
++
++	if (ucontrol->value.integer.value[0] < 0 ||
++	    ucontrol->value.integer.value[0] > 1)
++		return -EINVAL;
++	enabled = ucontrol->value.integer.value[0];
++
++	mutex_lock(&es8326->lock);
++	previous = es8326->force_internal_dmic;
++	es8326->force_internal_dmic = enabled;
++	if (!enabled && es8326->jack &&
++	    (es8326->jack->status & SND_JACK_MICROPHONE)) {
++		source1 = 0x00;
++		source2 = 0x00;
++	}
++	ret = es8326_apply_adc_sources(es8326, source1, source2);
++	if (ret)
++		es8326->force_internal_dmic = previous;
++	mutex_unlock(&es8326->lock);
++	return ret ? ret : previous != enabled;
++}
++
+ static const struct snd_kcontrol_new es8326_snd_controls[] = {
++	SOC_SINGLE_BOOL_EXT("Internal DMIC Force Switch", 0,
++			    es8326_internal_dmic_get, es8326_internal_dmic_put),
+ 	SOC_SINGLE_TLV("DAC Playback Volume", ES8326_DACL_VOL, 0, 0xbf, 0, dac_vol_tlv),
+ 	SOC_ENUM("Playback Polarity", dacpol),
+ 	SOC_SINGLE_TLV("DAC Ramp Rate", ES8326_DAC_RAMPRATE, 0, 0x0f, 0, softramp_rate),
+@@ -886,8 +947,7 @@
+ 				    SND_JACK_BTN_0 | SND_JACK_BTN_1 | SND_JACK_BTN_2);
+ 			snd_soc_jack_report(es8326->jack, 0, SND_JACK_HEADSET);
+ 			/* mute adc when mic path switch */
+-			regmap_write(es8326->regmap, ES8326_ADC1_SRC, 0x44);
+-			regmap_write(es8326->regmap, ES8326_ADC2_SRC, 0x66);
++			es8326_apply_adc_sources(es8326, 0x44, 0x66);
+ 		}
+ 		es8326->hp = 0;
+ 		regmap_update_bits(es8326->regmap, ES8326_HPDET_TYPE, 0x03, 0x01);
+@@ -951,8 +1011,7 @@
+ 					SND_JACK_HEADSET, SND_JACK_HEADSET);
+ 			regmap_update_bits(es8326->regmap, ES8326_PGA_PDN,
+ 					0x08, 0x08);
+-			regmap_write(es8326->regmap, ES8326_ADC1_SRC, 0x00);
+-			regmap_write(es8326->regmap, ES8326_ADC2_SRC, 0x00);
++			es8326_apply_adc_sources(es8326, 0x00, 0x00);
+ 			regmap_update_bits(es8326->regmap, ES8326_PGA_PDN,
+ 					0x08, 0x00);
+ 			usleep_range(10000, 15000);
+@@ -1384,3 +1443,6 @@
+ MODULE_DESCRIPTION("ASoC es8326 driver");
+ MODULE_AUTHOR("David Yang <yangxiaohua@everest-semi.com>");
+ MODULE_LICENSE("GPL");
++
++/* Local experimental control; default disabled. */
++MODULE_VERSION("0.1.0-positivo-dmic");

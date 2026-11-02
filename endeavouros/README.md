@@ -4,8 +4,10 @@
 
 **Configuração de sessão para alto-falantes e microfone, usando o driver da distribuição.**
 
-O [patch experimental para o kernel 7.2.11](driver/kernel-7.2.11-arch1-1/README.md)
-é um caminho separado: compilou, mas ainda aguarda teste de hardware após boot.
+Os [drivers corrigidos para o kernel 7.2.11](driver/kernel-7.2.11-arch1-1/README.md)
+são um caminho separado. Em 02/11, o usuário confirmou som e voz com os dois
+módulos carregados no boot isolado. A instalação persistente e a remoção do teste
+do GRUB foram concluídas; o primeiro reinício normal ainda não foi observado.
 
 Configuração de sessão para **Positivo C4128A-15**, codec **ESSX8326**, placa
 `sofessx8336`. Complementa a publicação original com uma alternativa para
@@ -28,8 +30,9 @@ Isso confirmou resposta à voz e transporte simultâneo de áudio naquela sessã
 Em **02/11/2026**, após reiniciar, a saída voltou a ficar silenciosa apesar dos
 fluxos em avanço: o amplificador estava desligado fisicamente, enquanto DAPM e
 `Speaker` indicavam ligado. O rearme pelo mixer recuperou o som, confirmado pelo
-usuário. A captura de voz não foi revalidada nesse reboot. Não houve validação
-prolongada de chamadas, qualidade/inteligibilidade ou suspensão.
+usuário. Naquele primeiro reboot, a voz não estava confirmada. Em um boot isolado
+posterior, com os dois módulos corrigidos, o usuário confirmou som e microfone.
+Não houve validação prolongada de chamadas, qualidade/inteligibilidade ou suspensão.
 
 ## Recorrência do amplificador e recuperação
 
@@ -46,9 +49,10 @@ sh endeavouros/scripts/retomar-audio.sh
 
 O comando apenas rearma `Speaker` pelo mixer; não recarrega módulos nem reinicia
 os serviços. Isso não corrige a causa no driver nem impede toda recorrência.
-O [patch 7.2.11](driver/kernel-7.2.11-arch1-1/README.md) tenta corrigir o ponto de
-retomada no driver e usa uma entrada de boot experimental separada. Ele ainda
-**não foi validado com o módulo corrigido carregado**.
+Os [patches 7.2.11](driver/kernel-7.2.11-arch1-1/README.md) tratam a retomada do
+amplificador e a seleção do microfone digital no codec. Som e voz foram confirmados
+com ambos os módulos em uso. O guia separa compilação, teste isolado, promoção ao
+boot normal e reversão.
 
 ## O problema e o contorno
 
@@ -264,8 +268,9 @@ Essa reversão não modifica o driver: nenhum módulo foi instalado por estes pa
 - A detecção física incorreta de jack não foi corrigida no driver; o perfil evita
   depender dela para selecionar entrada/saída. Novas detecções podem exigir revisão.
 - Houve recorrência do amplificador após reboot. O rearme no login e o comando
-  manual são contornos; a persistência e a captura de voz ainda exigem novos testes.
-  O patch experimental precisa do primeiro teste após boot com o candidato carregado.
+  manual são contornos da configuração de sessão, não substitutos dos patches.
+  Os dois módulos foram confirmados no boot isolado; o primeiro boot normal da
+  instalação persistente ainda precisa ser observado.
 - Os nomes e limites dos controles de mixer são específicos do codec observado.
   O script confere os controles antes de aplicar os ajustes; erros ficam no journal
   do WirePlumber, sem impedir a inicialização do gerenciador de áudio.
