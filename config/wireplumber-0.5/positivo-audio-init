@@ -1,0 +1,29 @@
+#!/bin/sh
+set -eu
+[ "$(cat /sys/class/dmi/id/product_name)" = "C4128A-15" ] || exit 0
+attempt=0
+until amixer -c sofessx8336 sget Speaker >/dev/null 2>&1; do
+    attempt=$((attempt + 1))
+    if [ "$attempt" -ge 120 ]; then
+        echo 'Positivo audio card was not ready within 30 seconds' >&2
+        exit 1
+    fi
+    sleep 0.25
+done
+# Confere os controles antes de alterar o mixer neste kernel.
+for control in DAC SPKL SPKR Headphone 'Internal Mic' 'Headset Mic' Speaker ADC 'ADC PGA'; do
+    amixer -c sofessx8336 sget "$control" >/dev/null
+done
+amixer -c sofessx8336 cget "name='HPVol SPKVol Switch'" >/dev/null
+amixer -q -c sofessx8336 cset "name='HPVol SPKVol Switch'" 3
+amixer -q -c sofessx8336 sset DAC 171
+amixer -q -c sofessx8336 sset SPKL 171
+amixer -q -c sofessx8336 sset SPKR 171
+amixer -q -c sofessx8336 sset Headphone off
+amixer -q -c sofessx8336 sset 'Headset Mic' off
+# Captura em 0 dB; os níveis anteriores adicionavam até 40 dB.
+amixer -q -c sofessx8336 sset ADC 191,191
+amixer -q -c sofessx8336 sset 'ADC PGA' 0,0
+amixer -q -c sofessx8336 sset 'Internal Mic' on
+amixer -q -c sofessx8336 sset Speaker on
+amixer -c sofessx8336 sget Speaker | grep -Fq 'Playback [on]'

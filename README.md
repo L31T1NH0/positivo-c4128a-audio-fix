@@ -1,8 +1,21 @@
 # Áudio no Positivo C4128A-15 (Linux)
 
-Patch do driver SOF ES8336 e configuração de reprodução interna para o notebook **Positivo C4128A-15**, codec **ESSX8326**, placa ALSA `sofessx8336`.
+Patch do driver SOF ES8336 e configurações de áudio para o notebook **Positivo C4128A-15**, codec **ESSX8326**, placa ALSA `sofessx8336`.
 
-**Estado documentado em 18/10/2026:** a reprodução voltou a funcionar. O microfone interno foi desativado para contornar uma segunda falha de reprodução/captura simultâneas. Esta publicação não representa uma solução completa de áudio e microfone.
+## Escolha a configuração do seu ambiente
+
+| Ambiente | Solução documentada | Estado |
+| --- | --- | --- |
+| EndeavourOS, kernel `7.2.11-arch1-1`, WirePlumber 0.5.18 | [Áudio e microfone, sem driver DKMS](docs/wireplumber-0.5.md) | Resposta à voz confirmada em 01/11/2026; configuração final ainda sem novo reboot/suspensão |
+| Linux Mint 22.3, kernel `7.0.0-28-generic`, WirePlumber 0.4.17 | Patch e configuração somente de alto-falantes, abaixo | Reprodução confirmada; microfone desativado |
+
+As configurações são alternativas para ambientes diferentes. Não instale as regras Lua 0.4 no WirePlumber 0.5, nem use o DKMS antigo no kernel 7.2.
+
+O ajuste novo mantém entrada e saída abertas para contornar o travamento observado ao reabrir o PCM compartilhado. Ele não comprova uma correção definitiva do driver. Consulte [os passos, a reversão e os limites](docs/wireplumber-0.5.md).
+
+## Histórico: Linux Mint e WirePlumber 0.4
+
+**Estado documentado em 18/10/2026 para o Mint:** a reprodução voltou a funcionar. O microfone interno foi desativado para contornar uma segunda falha de reprodução/captura simultâneas. Esta publicação não representa uma solução completa de áudio e microfone.
 
 ## Ambiente em que foi testado
 
@@ -87,7 +100,7 @@ Reinicie para carregar o módulo original. Para desfazer a configuração de ses
 
 ## Limites conhecidos
 
-- O bloqueio de reprodução/captura simultâneas não foi corrigido; o perfil publicado oferece apenas reprodução.
+- No ambiente Mint/WirePlumber 0.4 desta seção, o bloqueio de reprodução/captura simultâneas não foi corrigido; o perfil em `config/profile.conf` oferece apenas reprodução. O contorno novo para WirePlumber 0.5 está documentado separadamente.
 - A configuração final sem captura teve confirmação de voz e mídia com som, mas não passou por outro reboot nem por teste prolongado naquela etapa.
 - Suspensão do notebook, fone P2 e Bluetooth não foram validados. Não há troca automática para fone P2 neste perfil.
 - Manter a saída aberta pode aumentar o consumo de energia; isso não foi medido.
